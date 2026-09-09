@@ -1,0 +1,55 @@
+name: Shopee 0.9.0 isolated test dependencies
+on:
+  push:
+    branches: [build/shopee090-test-dependencies-20260909]
+    paths: [.github/workflows/shopee090-dependencies.yml]
+permissions:
+  contents: read
+jobs:
+  dependencies:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - name: Download public Node dependencies without install scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/shopee090-deps/node
+          cd /tmp/shopee090-deps/node
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund \
+            '@fastify/cors@11.0.1' '@fastify/websocket@11.2.0' \
+            'dotenv@16.6.1' 'drizzle-orm@0.44.4' 'fastify@5.5.0' \
+            'pg@8.16.3' 'ws@8.18.3' 'zod@3.24.2' \
+            '@types/node@22.15.30' '@types/pg@8.15.4' '@types/ws@8.18.1' \
+            'tsx@4.20.5' 'typescript@5.9.3' 'vitest@3.2.4'
+          node --version > ../node-version.txt
+          npm --version >> ../node-version.txt
+      - name: Compile isolated PostgreSQL server from official source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp
+          curl --fail --location --retry 2 https://ftp.postgresql.org/pub/source/v16.4/postgresql-16.4.tar.bz2 -o postgresql.tar.bz2
+          curl --fail --location --retry 2 https://ftp.postgresql.org/pub/source/v16.4/postgresql-16.4.tar.bz2.sha256 -o postgresql.sha256
+          expected=$(awk '{print $1}' postgresql.sha256)
+          echo "$expected  postgresql.tar.bz2" | sha256sum -c -
+          tar -xjf postgresql.tar.bz2
+          cd postgresql-16.4
+          ./configure --prefix=/tmp/shopee090-deps/postgres --without-icu --without-readline --without-zlib > /tmp/shopee090-deps/postgres-configure.log
+          make -j2 > /tmp/shopee090-deps/postgres-build.log
+          make install > /tmp/shopee090-deps/postgres-install.log
+          /tmp/shopee090-deps/postgres/bin/postgres --version > /tmp/shopee090-deps/postgres-version.txt
+      - name: Package dependencies and install cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar -czf /tmp/shopee090-test-dependencies.tar.gz -C /tmp shopee090-deps
+          ls -l /tmp/shopee090-test-dependencies.tar.gz
+      - name: Retain dependency artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: shopee090-test-dependencies
+          path: /tmp/shopee090-test-dependencies.tar.gz
+          retention-days: 7
+          if-no-files-found: error
