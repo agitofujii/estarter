@@ -25,7 +25,8 @@ jobs:
             'tsx@4.20.5' 'typescript@5.9.3' 'vitest@3.2.4'
           node --version > ../node-version.txt
           npm --version >> ../node-version.txt
-      - name: Compile isolated PostgreSQL server from official source
+          cp -a "$HOME/.npm/_cacache" /tmp/shopee090-deps/npm-cache
+      - name: Compile isolated PostgreSQL and pgcrypto from official source
         shell: bash
         run: |
           set -euo pipefail
@@ -36,9 +37,11 @@ jobs:
           echo "$expected  postgresql.tar.bz2" | sha256sum -c -
           tar -xjf postgresql.tar.bz2
           cd postgresql-16.4
-          ./configure --prefix=/tmp/shopee090-deps/postgres --without-icu --without-readline --without-zlib > /tmp/shopee090-deps/postgres-configure.log
+          ./configure --prefix=/tmp/shopee090-deps/postgres --without-icu --without-readline --without-zlib --with-ssl=openssl > /tmp/shopee090-deps/postgres-configure.log
           make -j2 > /tmp/shopee090-deps/postgres-build.log
           make install > /tmp/shopee090-deps/postgres-install.log
+          make -C contrib/pgcrypto -j2 >> /tmp/shopee090-deps/postgres-build.log
+          make -C contrib/pgcrypto install >> /tmp/shopee090-deps/postgres-install.log
           /tmp/shopee090-deps/postgres/bin/postgres --version > /tmp/shopee090-deps/postgres-version.txt
       - name: Package dependencies and install cache
         shell: bash
